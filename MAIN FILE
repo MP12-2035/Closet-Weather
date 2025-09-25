@@ -1,0 +1,92 @@
+import requests
+import itertools
+
+# --------------------------
+# 1. WARDROBE
+# --------------------------
+wardrobe = {
+    "tops": ["blue shirt", "white t-shirt", "hoodie"],
+    "bottoms": ["black jeans", "white skirt", "shorts"],
+    "shoes": ["sneakers", "boots", "sandals"],
+    "extras": ["jacket", "scarf", "umbrella"]
+}
+
+# --------------------------
+# 2. WEATHER FETCH
+# --------------------------
+API_KEY = "your_openweather_api_key"   # replace with your key
+CITY = "Delhi"
+URL = f"http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={API_KEY}&units=metric"
+
+def get_weather():
+    response = requests.get(URL)
+    data = response.json()
+    temp = data["main"]["temp"]
+    condition = data["weather"][0]["main"].lower()
+    return temp, condition
+
+# --------------------------
+# 3. SCORING FUNCTION
+# --------------------------
+def score_outfit(outfit, temp, condition):
+    score = 0
+    top, bottom, shoes = outfit
+
+    # Temperature logic
+    if temp > 28:
+        if "hoodie" in top: score -= 3
+        if "jeans" in bottom: score -= 2
+        if shoes == "sandals": score += 2
+    elif temp < 15:
+        if "hoodie" in top or "jacket" in top: score += 2
+        if shoes == "boots": score += 2
+        if shoes == "sandals": score -= 3
+    else:
+        score += 1  # moderate weather = flexible
+
+    # Rain logic
+    if "rain" in condition:
+        if shoes == "sandals": score -= 4
+        if shoes == "boots": score += 2
+        score += 1  # bonus if umbrella is added later
+
+    # Simple color/style combos (just as example rules)
+    if "blue" in top and "white" in bottom:
+        score += 2  # nice summer combo
+    if "black" in bottom and "white" in top:
+        score += 1  # classic combo
+
+    return score
+
+# --------------------------
+# 4. RECOMMENDER
+# --------------------------
+def recommend_outfit(temp, condition):
+    best_score = float("-inf")
+    best_outfit = None
+
+    # Generate all combinations of (top, bottom, shoes)
+    for outfit in itertools.product(wardrobe["tops"], wardrobe["bottoms"], wardrobe["shoes"]):
+        s = score_outfit(outfit, temp, condition)
+        if s > best_score:
+            best_score = s
+            best_outfit = outfit
+
+    # Add extras (umbrella, jacket, etc.)
+    extras = []
+    if "rain" in condition:
+        extras.append("umbrella")
+    if temp < 15 and "hoodie" not in best_outfit[0]:
+        extras.append("jacket")
+
+    return best_outfit + tuple(extras), best_score
+
+# --------------------------
+# 5. MAIN
+# --------------------------
+if __name__ == "__main__":
+    temp, condition = get_weather()
+    print(f"Weather in {CITY}: {temp}°C, {condition}")
+    outfit, score = recommend_outfit(temp, condition)
+    print("👉 Recommended outfit:", ", ".join(outfit))
+    print(f"(Outfit score: {score})")
